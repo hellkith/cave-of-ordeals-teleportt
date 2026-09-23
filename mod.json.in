@@ -1,7 +1,7 @@
 {
-  "id": "com.example.my_mod",
-  "name": "My Mod",
+  "id": "com.hellkith.cave_of_ordeals_teleport",
+  "name": "Cave of Ordeals teleport",
   "version": "@PROJECT_VERSION@",
-  "author": "You",
-  "description": "An example Dusklight mod"
+  "author": "Hellkith",
+  "description": "Teleport to completed floors in the cave of ordeals!"
 }
