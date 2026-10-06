@@ -26,12 +26,20 @@ mods::flow::RegisteredMessage g_page1Prompt;
 mods::flow::RegisteredMessage g_page1Options;
 mods::flow::RegisteredMessage g_page2Prompt;
 mods::flow::RegisteredMessage g_page2Options;
+mods::flow::RegisteredMessage g_lockedMessage;
 int g_pendingRoom = -1;
 constexpr uint8_t kRoomFloor9 = 9;
 constexpr uint8_t kRoomFloor19 = 19;
 constexpr uint8_t kRoomFloor29 = 29;
 constexpr uint8_t kRoomFloor39 = 39;
 constexpr uint8_t kRoomFloor49 = 49;
+
+//memory flags for the Great Fairy to check if spoken to
+constexpr uint16_t greatFairy1 = 501;
+constexpr uint16_t greatFairy2 = 502;
+constexpr uint16_t greatFairy3 = 503;
+constexpr uint16_t greatFairy4 = 504;
+constexpr uint16_t greatFairy5 = 505;
 
 //easy register for all languages
 mods::flow::RegisteredMessage register_all_languages(const mods::flow::MessageBuilder& b) {
@@ -98,11 +106,16 @@ extern "C" {
 			.box_kind(MESSAGE_BOX_TALK)
 			.options("Floor 29", "Floor 39", "Floor 49"));
 
+		g_lockedMessage = register_all_languages(mods::flow::MessageBuilder{}
+			.box_kind(MESSAGE_BOX_TALK)
+			.text("Find me on this floor first Hero. Great fairy"));
+
 
 		if (!g_page1Prompt) { svc_log->error(mod_ctx, "Failed to write text"); return g_page1Prompt.result(); }
 		if (!g_page1Options) { svc_log->error(mod_ctx, "Failed to write text"); return g_page1Options.result(); }
 		if (!g_page2Prompt) { svc_log->error(mod_ctx, "Failed to write text"); return g_page2Prompt.result(); }
 		if (!g_page2Options) { svc_log->error(mod_ctx, "Failed to write text"); return g_page2Options.result(); }
+		if (!g_lockedMessage) { svc_log->error(mod_ctx, "Failed to write text"); return g_lockedMessage.result(); }
 
 		//setup teleports for the options
 		using mods::flow::kEnd;
@@ -116,13 +129,23 @@ extern "C" {
 		auto go39 = graph.add_event(ev, { 0, 0, 0, kRoomFloor39 }).next(kEnd);
 		auto go49 = graph.add_event(ev, { 0, 0, 0, kRoomFloor49 }).next(kEnd);
 
+		//prepare the lock message
+		auto locked = graph.add_message(g_lockedMessage.id()).next(kEnd);
+
+		//add check if great fairy on corresponding floor has been spoken to
+		auto checkFloor9Access = graph.add_branch(FLOW_QUERY_EVENT_FLAG, greatFairy1).results({ go9,  locked });
+		auto checkFloor19Access = graph.add_branch(FLOW_QUERY_EVENT_FLAG, greatFairy2).results({ go19, locked });
+		auto checkFloor29Access = graph.add_branch(FLOW_QUERY_EVENT_FLAG, greatFairy3).results({ go29, locked });
+		auto checkFloor39Access = graph.add_branch(FLOW_QUERY_EVENT_FLAG, greatFairy4).results({ go39, locked });
+		auto checkFloor49Access = graph.add_branch(FLOW_QUERY_EVENT_FLAG, greatFairy5).results({ go49, locked });
+
 		//link teleports to the options and create the button flow (9/19/next -> 29/39/49)
-		auto branch2 = graph.add_branch(FLOW_QUERY_SELECT_3_CANCEL, 0).results({ go29, go39, go49, kEnd });
+		auto branch2 = graph.add_branch(FLOW_QUERY_SELECT_3_CANCEL, 0).results({ checkFloor29Access, checkFloor39Access, checkFloor49Access, kEnd });
 		auto options2 = graph.add_message(g_page2Options.id()).next(branch2);
 		auto prompt2 = graph.add_message(g_page2Prompt.id()).next(options2);
 		auto start2 = graph.add_event(FLOW_EVENT_SELECT_VERTICAL, { 0, 0, 0, 4 }).next(prompt2);
 
-		auto branch1 = graph.add_branch(FLOW_QUERY_SELECT_3_CANCEL, 0).results({ go9, go19, start2, kEnd });
+		auto branch1 = graph.add_branch(FLOW_QUERY_SELECT_3_CANCEL, 0).results({ checkFloor9Access, checkFloor19Access, start2, kEnd });
 		auto options1 = graph.add_message(g_page1Options.id()).next(branch1);
 		auto prompt1 = graph.add_message(g_page1Prompt.id()).next(options1);
 		auto signNode = graph.add_event(FLOW_EVENT_SELECT_VERTICAL, { 0, 0, 0, 4 }).next(prompt1);
@@ -168,6 +191,7 @@ extern "C" {
 		g_page1Options.reset();
 		g_page2Prompt.reset();
 		g_page2Options.reset();
+		g_lockedMessage.reset();
 		return MOD_OK;
 	}
 }
